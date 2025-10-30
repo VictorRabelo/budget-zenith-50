@@ -230,36 +230,51 @@ export const HistoryView = () => {
         noDataLabel={t('history.noData')}
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2 bg-gradient-card border-border/50 p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-foreground">{t('history.monthlyDistribution')}</h3>
-            <p className="text-sm text-muted-foreground">
-              {t('history.summaryDescription', { period: t('history.periodYear', { year: selectedYear }) })}
-            </p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="bg-gradient-card border-border/50 p-4 sm:p-6">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">{t('history.monthlyDistribution')}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t('history.summaryDescription', { period: t('history.periodYear', { year: selectedYear }) })}
+              </p>
+            </div>
+            <div className="h-[300px] w-full">
+              <HistoryChart
+                data={monthlyTotals}
+                monthLabels={monthLabels}
+                selectedMonth={selectedMonth}
+                onMonthSelect={handleMonthSelect}
+                totalLabel={t('history.totalSpent')}
+              />
+            </div>
           </div>
-          <HistoryChart
-            data={monthlyTotals}
-            monthLabels={monthLabels}
-            selectedMonth={selectedMonth}
-            onMonthSelect={handleMonthSelect}
-            totalLabel={t('history.totalSpent')}
-          />
         </Card>
 
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">{t('history.tableTitle')}</h3>
-          <HistoryTable
-            data={monthlyTableData}
-            monthLabels={monthLabels}
-            selectedMonth={selectedMonth}
-            onMonthSelect={handleMonthSelect}
-            noDataLabel={t('history.noData')}
-            monthHeader={t('history.table.month')}
-            totalHeader={t('history.table.total')}
-            transactionsHeader={t('history.table.transactions')}
-          />
-        </div>
+        <Card className="border-border/50 p-4 sm:p-6">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">{t('history.tableTitle')}</h3>
+              <p className="text-sm text-muted-foreground">
+                {t('history.summaryDescription', { period: periodLabel })}
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="min-w-[400px]">
+                <HistoryTable
+                  data={monthlyTableData}
+                  monthLabels={monthLabels}
+                  selectedMonth={selectedMonth}
+                  onMonthSelect={handleMonthSelect}
+                  noDataLabel={t('history.noData')}
+                  monthHeader={t('history.table.month')}
+                  totalHeader={t('history.table.total')}
+                  transactionsHeader={t('history.table.transactions')}
+                />
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );
