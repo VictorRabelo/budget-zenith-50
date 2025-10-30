@@ -4,6 +4,22 @@ import { translations } from '@/i18n/translations';
 import { toast } from '@/hooks/use-toast';
 import { getDefaultCategories, normalizeCategoryPercentages } from '@/lib/categories';
 
+type CategoryUpdateOptions = {
+  normalize?: boolean;
+};
+
+const prepareCategoryUpdate = (
+  categories: Category[],
+  options?: CategoryUpdateOptions,
+): Category[] => {
+  const shouldNormalize = options?.normalize ?? true;
+  if (shouldNormalize) {
+    return normalizeCategoryPercentages(categories);
+  }
+
+  return categories.map(category => ({ ...category }));
+};
+
 const getExpenseYear = (expense: Expense) => {
   if (expense.date) {
     const [year] = expense.date.split('-');
@@ -48,9 +64,13 @@ interface AppContextType {
   deleteGoal: (id: string) => void;
   toggleTheme: () => void;
   setLanguage: (lang: Language) => void;
-  updateCategoryPercentages: (categories: Category[]) => void;
+  updateCategoryPercentages: (categories: Category[], options?: CategoryUpdateOptions) => void;
   addCategory: (category: Omit<Category, 'id'>) => void;
-  updateCategory: (id: string, category: Partial<Omit<Category, 'id'>>) => void;
+  updateCategory: (
+    id: string,
+    category: Partial<Omit<Category, 'id'>>,
+    options?: CategoryUpdateOptions,
+  ) => void;
   deleteCategory: (id: string) => void;
   getExpensesByMonth: (month: string) => Expense[];
   getExpensesByYear: (year: string) => Expense[];
@@ -67,7 +87,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       try {
         const parsed = JSON.parse(saved) as Budget;
         const categories = parsed.categories?.length
-          ? normalizeCategoryPercentages(parsed.categories)
+          ? prepareCategoryUpdate(parsed.categories, { normalize: false })
           : getDefaultCategories();
 
         return {
@@ -129,26 +149,35 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const t = (key: string, params?: Record<string, string>) => {
     const keys = key.split('.');
-    let value: any = translations[language];
+    let value: unknown = translations[language];
 
-    for (const k of keys) {
-      value = value?.[k];
+    for (const segment of keys) {
+      if (typeof value === 'object' && value !== null && segment in value) {
+        value = (value as Record<string, unknown>)[segment];
+      } else {
+        value = undefined;
+        break;
+      }
     }
 
-    if (typeof value === 'string' && params) {
+    if (typeof value !== 'string') {
+      return key;
+    }
+
+    if (params) {
       return Object.entries(params).reduce(
-        (acc, [key, val]) => acc.replace(`{{${key}}}`, val),
-        value
+        (acc, [paramKey, paramValue]) => acc.replace(`{{${paramKey}}}`, paramValue),
+        value,
       );
     }
 
-    return value || key;
+    return value;
   };
 
   const updateBudget = (newBudget: Budget) => {
     setBudget({
       totalIncome: newBudget.totalIncome,
-      categories: normalizeCategoryPercentages(newBudget.categories),
+      categories: prepareCategoryUpdate(newBudget.categories, { normalize: false }),
     });
     toast({
       title: t('common.success'),
@@ -237,10 +266,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLanguageState(lang);
   };
 
-  const updateCategoryPercentages = (categories: Category[]) => {
+  const updateCategoryPercentages = (
+    categories: Category[],
+    options?: CategoryUpdateOptions,
+  ) => {
     setBudget(current => ({
       ...current,
-      categories: normalizeCategoryPercentages(categories),
+      categories: prepareCategoryUpdate(categories, options),
     }));
   };
 
@@ -264,7 +296,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateCategory = (id: string, category: Partial<Omit<Category, 'id'>>) => {
+  const updateCategory = (
+    id: string,
+    category: Partial<Omit<Category, 'id'>>,
+    options?: CategoryUpdateOptions,
+  ) => {
     let shouldNotify = false;
     setBudget(current => {
       if (!current.categories.some(cat => cat.id === id)) {
@@ -279,7 +315,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       return {
         ...current,
-        categories: normalizeCategoryPercentages(updatedCategories),
+        categories: prepareCategoryUpdate(updatedCategories, options),
       };
     });
 

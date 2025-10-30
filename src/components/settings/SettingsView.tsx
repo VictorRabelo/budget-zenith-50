@@ -23,10 +23,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Category } from '@/types';
 import { CategoryForm, CategoryFormValues } from './CategoryForm';
-import { rebalanceCategories } from '@/lib/categories';
 import { CATEGORY_ICON_COMPONENTS } from './category-icons';
 import { cn } from '@/lib/utils';
 import { DollarSign, Save, Plus, Edit3, Trash2 } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 const getCategoryLabel = (name: string, translate: (key: string) => string) => {
   if (name.startsWith('categories.')) {
@@ -64,11 +64,30 @@ export const SettingsView = () => {
   );
 
   const handlePercentageChange = (categoryId: string, value: number) => {
-    const updated = rebalanceCategories(budget.categories, categoryId, value);
-    updateCategoryPercentages(updated);
+    if (Number.isNaN(value)) {
+      return;
+    }
+
+    const clampedValue = Math.max(0, Math.min(100, Math.round(value)));
+    const updated = budget.categories.map(category =>
+      category.id === categoryId
+        ? { ...category, percentage: clampedValue }
+        : category,
+    );
+
+    updateCategoryPercentages(updated, { normalize: false });
   };
 
   const handleSave = () => {
+    if (totalPercentage !== 100) {
+      toast({
+        title: t('common.error'),
+        description: t('categories.totalMustBe100'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
     updateBudget({
       totalIncome: parseFloat(income) || 0,
       categories: budget.categories,
@@ -97,12 +116,16 @@ export const SettingsView = () => {
     };
 
     if (editingCategory) {
-      updateCategory(editingCategory.id, {
-        name: resolveName(editingCategory, values.name),
-        percentage: values.percentage,
-        color: values.color,
-        icon: values.icon,
-      });
+      updateCategory(
+        editingCategory.id,
+        {
+          name: resolveName(editingCategory, values.name),
+          percentage: values.percentage,
+          color: values.color,
+          icon: values.icon,
+        },
+        { normalize: false },
+      );
     } else {
       addCategory({
         name: values.name,
@@ -233,7 +256,8 @@ export const SettingsView = () => {
 
         <Button
           onClick={handleSave}
-          className="w-full bg-gradient-primary hover:opacity-90 transition-opacity"
+          disabled={totalPercentage !== 100}
+          className="w-full bg-gradient-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Save className="mr-2 h-4 w-4" />
           {t('common.save')}
