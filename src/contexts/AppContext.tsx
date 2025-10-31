@@ -33,6 +33,10 @@ const getExpenseMonthKey = (expense: Expense) => {
   return '';
 };
 
+type CategoryUpdateOptions = {
+  normalize?: boolean;
+};
+
 interface AppContextType {
   budget: Budget;
   expenses: Expense[];
@@ -48,7 +52,7 @@ interface AppContextType {
   deleteGoal: (id: string) => void;
   toggleTheme: () => void;
   setLanguage: (lang: Language) => void;
-  updateCategoryPercentages: (categories: Category[]) => void;
+  updateCategoryPercentages: (categories: Category[], options?: CategoryUpdateOptions) => void;
   addCategory: (category: Omit<Category, 'id'>) => void;
   updateCategory: (id: string, category: Partial<Omit<Category, 'id'>>) => void;
   deleteCategory: (id: string) => void;
@@ -145,6 +149,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return value || key;
   };
 
+  const sanitizeCategoryPercentages = (categories: Category[]): Category[] =>
+    categories.map(category => ({
+      ...category,
+      percentage: Math.max(0, Math.min(100, Math.round(category.percentage))),
+    }));
+
+  const applyCategoryUpdate = (
+    categories: Category[],
+    options?: CategoryUpdateOptions,
+  ): Category[] => {
+    const sanitized = sanitizeCategoryPercentages(categories);
+    if (options?.normalize === false) {
+      return sanitized;
+    }
+
+    return normalizeCategoryPercentages(sanitized);
+  };
+
   const updateBudget = (newBudget: Budget) => {
     setBudget({
       totalIncome: newBudget.totalIncome,
@@ -237,10 +259,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLanguageState(lang);
   };
 
-  const updateCategoryPercentages = (categories: Category[]) => {
+  const updateCategoryPercentages = (
+    categories: Category[],
+    options?: CategoryUpdateOptions,
+  ) => {
     setBudget(current => ({
       ...current,
-      categories: normalizeCategoryPercentages(categories),
+      categories: applyCategoryUpdate(categories, options),
     }));
   };
 
@@ -251,7 +276,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         ...category,
         id: Date.now().toString(),
       };
-      const updated = normalizeCategoryPercentages([...current.categories, newCategory]);
+      const updated = applyCategoryUpdate([...current.categories, newCategory]);
       shouldNotify = true;
       return { ...current, categories: updated };
     });
@@ -271,15 +296,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         return current;
       }
 
-      const updatedCategories = current.categories.map(cat =>
-        cat.id === id ? { ...cat, ...category } : cat,
-      );
+      let didUpdate = false;
+
+      const updatedCategories = current.categories.map(cat => {
+        if (cat.id !== id) {
+          return cat;
+        }
+
+        const updatedCategory = { ...cat, ...category };
+
+        if (
+          updatedCategory.name !== cat.name ||
+          updatedCategory.percentage !== cat.percentage ||
+          updatedCategory.color !== cat.color ||
+          updatedCategory.icon !== cat.icon
+        ) {
+          didUpdate = true;
+        }
+
+        return updatedCategory;
+      });
+
+      if (!didUpdate) {
+        return current;
+      }
 
       shouldNotify = true;
 
       return {
         ...current,
-        categories: normalizeCategoryPercentages(updatedCategories),
+        categories: applyCategoryUpdate(updatedCategories, { normalize: false }),
       };
     });
 
@@ -301,7 +347,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const remaining = current.categories.filter(cat => cat.id !== id);
       const categories = remaining.length
-        ? normalizeCategoryPercentages(remaining)
+        ? applyCategoryUpdate(remaining)
         : getDefaultCategories();
 
       shouldNotify = true;
